@@ -67,3 +67,11 @@ npm run dev
 With default settings, you will be able to access the frontend on `http://localhost:5173/` 
 It assumes the backend is running at `http://localhost:8080`.
 Check `vite.config.js` for these settings.
+
+## Architecture
+
+The architecture documentation lives in `docs/architecture/`:
+
+- `workspace.dsl`: C4 model (Context, Container, Component) in Structurizr DSL.
+- `diagrams/`: rendered PNG diagrams and their PlantUML sources.
+- `quality-attributes.md`: assessment of the monolith's quality attributes, with trade-offs and gaps.
