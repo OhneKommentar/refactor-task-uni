@@ -1,0 +1,56 @@
+@startuml
+title <size:24>Component View: Instakill - Backend</size>\n<size:24>Main components of the backend container and their dependencies.</size>
+
+set separator none
+top to bottom direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+!include <C4/C4_Container>
+!include <C4/C4_Component>
+
+System_Boundary("Instakill_boundary", "Instakill", $tags="") {
+  Container_Boundary("Instakill.Backend_boundary", "Backend", $tags="") {
+    Component(Instakill.Backend.InteractionService, "InteractionService", $techn="Spring Service", $descr="Likes (toggle) and comments.", $tags="", $link="")
+    Component(Instakill.Backend.FeedService, "FeedService", $techn="Spring Service, Strategy pattern", $descr="Selects a ranking strategy: newest or trending.", $tags="", $link="")
+    Component(Instakill.Backend.DomainEventPublisher, "DomainEventPublisher", $techn="Spring Component", $descr="Publishes LikeCreatedEvent. Current implementation is a no-op.", $tags="", $link="")
+    Component(Instakill.Backend.RepositoryAdapters, "Repository Adapters", $techn="Spring Component, Entity mapping", $descr="Implement the domain repository interfaces on top of JPA entities.", $tags="", $link="")
+    Component(Instakill.Backend.SpringDataJPARepositories, "Spring Data JPA Repositories", $techn="Spring Data JPA, Hibernate", $descr="Query methods and trending query.", $tags="", $link="")
+    Component(Instakill.Backend.RESTControllers, "REST Controllers", $techn="Spring MVC", $descr="Auth, user, post, feed, comment and like endpoints under /api.", $tags="", $link="")
+    Component(Instakill.Backend.WebControllers, "Web Controllers", $techn="Spring MVC, Thymeleaf", $descr="Thymeleaf pages for login, register, feed, post detail and post creation.", $tags="", $link="")
+    Component(Instakill.Backend.Security, "Security", $techn="Spring Security, jjwt", $descr="SecurityConfig filter chains, JWT authentication filter and token service (HttpOnly ACCESS_TOKEN cookie).", $tags="", $link="")
+    Component(Instakill.Backend.AuthServiceUserService, "AuthService / UserService", $techn="Spring Service", $descr="Registration, login (BCrypt), user lookup.", $tags="", $link="")
+    Component(Instakill.Backend.PostService, "PostService", $techn="Spring Service", $descr="Create, read and delete posts; ownership checks.", $tags="", $link="")
+  }
+
+  ContainerDb(Instakill.Database, "Database", $techn="SQLite (instakill.db)", $descr="Stores users, posts, comments and likes in a single file.", $tags="", $link="")
+}
+
+Rel(Instakill.Backend.WebControllers, Instakill.Backend.AuthServiceUserService, "Registers and logs in users", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.WebControllers, Instakill.Backend.PostService, "Creates, shows and comments on posts", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.WebControllers, Instakill.Backend.InteractionService, "Likes posts", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.RESTControllers, Instakill.Backend.AuthServiceUserService, "Auth and user endpoints", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.RESTControllers, Instakill.Backend.PostService, "Post and feed endpoints", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.RESTControllers, Instakill.Backend.InteractionService, "Like and comment endpoints", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.RESTControllers, Instakill.Backend.Security, "Resolves the authenticated principal", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.WebControllers, Instakill.Backend.Security, "Resolves the authenticated principal", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.AuthServiceUserService, Instakill.Backend.Security, "Issues JWT on login", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.PostService, Instakill.Backend.FeedService, "Uses FeedSort for listing", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.PostService, Instakill.Backend.RepositoryAdapters, "Reads and writes posts", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.InteractionService, Instakill.Backend.RepositoryAdapters, "Reads and writes likes and comments", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.InteractionService, Instakill.Backend.DomainEventPublisher, "Publishes LikeCreatedEvent", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.AuthServiceUserService, Instakill.Backend.RepositoryAdapters, "Reads and writes users", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.FeedService, Instakill.Backend.RepositoryAdapters, "Fetches latest or trending posts", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.RepositoryAdapters, Instakill.Backend.SpringDataJPARepositories, "Delegates to", $techn="", $tags="", $link="")
+Rel(Instakill.Backend.SpringDataJPARepositories, Instakill.Database, "SQL", $techn="JDBC", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml

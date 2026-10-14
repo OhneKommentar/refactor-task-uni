@@ -1,0 +1,24 @@
+@startuml
+title <size:24>System Context View: Instakill</size>\n<size:24>Instakill in its environment. No external services are integrated.</size>
+
+set separator none
+left to right direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+
+Person(User, "User", $descr="Registers, logs in, creates posts, likes and comments.", $tags="", $link="")
+System(Instakill, "Instakill", $descr="Instagram-style social feed (monolith).", $tags="", $link="")
+
+Rel(User, Instakill, "Uses", $techn="Browser", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml

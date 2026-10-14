@@ -1,0 +1,33 @@
+@startuml
+title <size:24>Container View: Instakill</size>\n<size:24>The three containers and how they communicate.</size>
+
+set separator none
+left to right direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+!include <C4/C4_Container>
+
+Person(User, "User", $descr="Registers, logs in, creates posts, likes and comments.", $tags="", $link="")
+
+System_Boundary("Instakill_boundary", "Instakill", $tags="") {
+  ContainerDb(Instakill.Database, "Database", $techn="SQLite (instakill.db)", $descr="Stores users, posts, comments and likes in a single file.", $tags="", $link="")
+  Container(Instakill.VueSPA, "Vue SPA", $techn="Vue 3, Vite, Axios", $descr="Single-page app for feed, posts, comments and likes.", $tags="", $link="")
+  Container(Instakill.Backend, "Backend", $techn="Java 23, Spring Boot 3.3, Spring Security, Spring Data JPA", $descr="Serves the REST API (/api/**) and server-rendered pages (Thymeleaf).", $tags="", $link="")
+}
+
+Rel(User, Instakill.VueSPA, "Uses", $techn="Browser", $tags="", $link="")
+Rel(User, Instakill.Backend, "Uses server-rendered pages", $techn="HTTPS (Thymeleaf)", $tags="", $link="")
+Rel(Instakill.VueSPA, Instakill.Backend, "Calls REST API", $techn="JSON over HTTP, JWT cookie", $tags="", $link="")
+Rel(Instakill.Backend, Instakill.Database, "Reads and writes", $techn="JDBC via Hibernate (ddl-auto: update)", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml
