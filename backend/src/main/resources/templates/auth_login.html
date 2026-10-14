@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div class="auth-container">
+    <h1>Login</h1>
+    <form th:action="@{/auth/login}" th:object="${loginForm}" method="post" class="form">
+        <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <label>Username or email
+            <input type="text" th:field="*{usernameOrEmail}">
+        </label>
+        <div class="error" th:if="${#fields.hasErrors('usernameOrEmail')}" th:errors="*{usernameOrEmail}"></div>
+        <label>Password
+            <input type="password" th:field="*{password}">
+        </label>
+        <div class="error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></div>
+        <div class="error" th:if="${#fields.hasGlobalErrors()}" th:each="err : ${#fields.globalErrors()}" th:text="${err}"></div>
+        <button type="submit">Sign in</button>
+    </form>
+    <p>Need an account? <a th:href="@{/auth/register}">Register</a></p>
+</div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:file:memdb1?mode=memory&cache=shared
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: create-drop
+  main:
+    web-application-type: servlet
+server:
+  servlet:
+    context-path: /
+
+instakill:
+  jwt:
+    secret: test-secret-change-me-change-me-change-me-change-me-1234567890
+    issuer: instakill-test
+    ttl-minutes: 60

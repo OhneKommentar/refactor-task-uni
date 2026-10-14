@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:./instakill.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+server:
+  servlet:
+    context-path: /
+springdoc:
+  api-docs:
+    path: /api/v3/api-docs
+  swagger-ui:
+    path: /api/swagger
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+instakill:
+  jwt:
+    secret: change-me-change-me-change-me-change-me-change-me-secret-key-1234
+    issuer: instakill
+    ttl-minutes: 120
+logging:
+  level:
+    org.hibernate.SQL: warn
+

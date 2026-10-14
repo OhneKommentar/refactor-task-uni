@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" th:fragment="layout(title, content)">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${title}">Instakill</title>
+    <link rel="stylesheet" th:href="@{/css/main.css}">
+</head>
+<body>
+<nav class="navbar">
+    <div class="brand">Instakill</div>
+    <div class="nav-links">
+        <a th:href="@{/feed}">Feed</a>
+        <a th:href="@{/posts/new}">Create</a>
+        <form th:action="@{/auth/logout}" method="post" class="logout-form">
+            <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit">Logout</button>
+        </form>
+    </div>
+</nav>
+<main class="container" th:replace="${content}"></main>
+</body>
+</html>

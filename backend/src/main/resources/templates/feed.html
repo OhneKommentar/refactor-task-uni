@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:replace="~{layout :: layout('Feed', ~{::section})}">
+    <section>
+        <div class="feed-header">
+            <h1>Feed</h1>
+            <div class="feed-filters">
+                <a th:href="@{'/feed'(sort='new')}" th:classappend="${sort} == 'new' ? 'active'">Newest</a>
+                <a th:href="@{'/feed'(sort='trending')}" th:classappend="${sort} == 'trending' ? 'active'">Trending</a>
+            </div>
+        </div>
+        <div class="post" th:each="post : ${posts}">
+            <div class="post-header">
+                <div>
+                    <span class="author" th:text="${post.author().username()}"></span>
+                    <span class="timestamp" th:text="${#temporals.format(post.createdAt(), 'MMM d, HH:mm')}"></span>
+                </div>
+                <div class="metrics">
+                    <span th:text="${post.likeCount()} + ' likes'"></span>
+                    <span th:text="${post.commentCount()} + ' comments'"></span>
+                </div>
+            </div>
+            <p th:text="${post.content()}"></p>
+            <img th:if="${post.imageUrl()}" th:src="${post.imageUrl()}" alt="Post image"/>
+            <div class="post-actions">
+                <form th:action="@{'/posts/' + ${post.id()} + '/likes'}" method="post">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <button type="submit" th:text="${post.likedByCurrentUser()} ? 'Unlike' : 'Like'"></button>
+                </form>
+                <a th:href="@{'/posts/' + ${post.id()}}">Open</a>
+            </div>
+        </div>
+    </section>
+</div>
+</body>
+</html>

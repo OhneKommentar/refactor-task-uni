@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:replace="~{layout :: layout('Post', ~{::section})}">
+    <section class="post-detail">
+        <article class="post">
+            <div class="post-header">
+                <div>
+                    <span class="author" th:text="${post.author().username()}"></span>
+                    <span class="timestamp" th:text="${#temporals.format(post.createdAt(), 'MMM d, HH:mm')}"></span>
+                </div>
+                <div class="metrics">
+                    <span th:text="${post.likeCount()} + ' likes'"></span>
+                    <span th:text="${post.commentCount()} + ' comments'"></span>
+                </div>
+            </div>
+            <p th:text="${post.content()}"></p>
+            <img th:if="${post.imageUrl()}" th:src="${post.imageUrl()}" alt="Post image"/>
+            <div class="post-actions">
+                <form th:action="@{'/posts/' + ${post.id()} + '/likes'}" method="post">
+                    <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <button type="submit" th:text="${post.likedByCurrentUser()} ? 'Unlike' : 'Like'"></button>
+                </form>
+            </div>
+        </article>
+        <section class="comments">
+            <h2>Comments</h2>
+            <div class="comment" th:each="comment : ${comments}">
+                <div>
+                    <span class="author" th:text="${comment.author().username()}"></span>
+                    <span class="timestamp" th:text="${#temporals.format(comment.createdAt(), 'MMM d, HH:mm')}"></span>
+                </div>
+                <p th:text="${comment.content()}"></p>
+            </div>
+            <form th:action="@{'/posts/' + ${post.id()} + '/comments'}" th:object="${commentForm}" method="post" class="form">
+                <input type="hidden" th:if="${_csrf != null}" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <label>Add comment
+                    <textarea th:field="*{content}" rows="3"></textarea>
+                </label>
+                <div class="error" th:if="${#fields.hasErrors('content')}" th:errors="*{content}"></div>
+                <button type="submit">Comment</button>
+            </form>
+        </section>
+    </section>
+</div>
+</body>
+</html>
