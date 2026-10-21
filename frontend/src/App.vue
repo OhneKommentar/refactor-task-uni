@@ -28,6 +28,7 @@
         <form @submit.prevent="createNewPost" class="card form composer">
           <textarea v-model="composer.content" rows="3" placeholder="Share something..." required></textarea>
           <input v-model="composer.imageUrl" placeholder="Image URL (optional)">
+          <input type="file" accept="image/*,video/*" @change="uploadComposerMedia">
           <div class="actions">
             <button type="submit">Post</button>
           </div>
@@ -54,7 +55,8 @@
             </div>
           </header>
           <p>{{ post.content }}</p>
-          <img v-if="post.imageUrl" :src="post.imageUrl" alt="post image">
+          <video v-if="post.imageUrl && isVideo(post.imageUrl)" :src="post.imageUrl" controls></video>
+          <img v-else-if="post.imageUrl" :src="post.imageUrl" alt="post image">
           
           <!-- Comments Section -->
           <section class="comments">
@@ -92,7 +94,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { createPost, fetchMe, listFeed, login, register as registerUser, toggleLike, listComments, addComment } from './api'
+import { createPost, fetchMe, listFeed, login, register as registerUser, toggleLike, listComments, addComment, uploadMedia } from './api'
 
 const user = ref(null)
 const posts = ref([])
@@ -178,6 +180,16 @@ async function submitComment(postId) {
   } finally {
     commentLoading[postId] = false
   }
+}
+
+function isVideo(url) {
+  return /\.(mp4|mov|webm)$/i.test(url)
+}
+
+async function uploadComposerMedia(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  composer.imageUrl = await uploadMedia(file)
 }
 
 async function createNewPost() {

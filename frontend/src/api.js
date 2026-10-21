@@ -20,6 +20,12 @@ export function createPost(payload) {
   return client.post('/api/posts', payload).then(res => res.data)
 }
 
+export function uploadMedia(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return client.post('/api/media', formData).then(res => res.data.mediaUrl)
+}
+
 export function listFeed(params) {
   return client.get('/api/feed', { params }).then(res => res.data)
 }
