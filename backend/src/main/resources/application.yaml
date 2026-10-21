@@ -7,6 +7,12 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+media:
+  base-path: media
 server:
   servlet:
     context-path: /

@@ -60,7 +60,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/auth/**", "/css/**", "/js/**", "/images/**", "/actuator/health").permitAll()
+                        .requestMatchers("/", "/auth/**", "/css/**", "/js/**", "/images/**", "/media/**", "/actuator/health").permitAll()
                         .anyRequest().authenticated()
                 )
                 .formLogin(form -> form.disable())
