@@ -13,6 +13,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import jakarta.servlet.http.Cookie;
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -32,10 +39,9 @@ class MediaRestIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
-    void uploadedFileIsReturnedUnderMediaUrl() throws Exception {
+    void uploadedImageIsScaledAndReturnedUnderMediaUrl() throws Exception {
         Cookie token = registerUser("mediauser");
-        byte[] content = "fake png bytes".getBytes();
-        MockMultipartFile file = new MockMultipartFile("file", "photo.png", MediaType.IMAGE_PNG_VALUE, content);
+        MockMultipartFile file = new MockMultipartFile("file", "photo.png", MediaType.IMAGE_PNG_VALUE, pngBytes(800, 400));
 
         MvcResult uploadResult = mockMvc.perform(multipart("/api/media")
                         .file(file)
@@ -51,12 +57,25 @@ class MediaRestIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        assertThat(served.getResponse().getContentAsByteArray()).isEqualTo(content);
+        BufferedImage stored = ImageIO.read(new ByteArrayInputStream(served.getResponse().getContentAsByteArray()));
+        assertThat(stored.getWidth()).isEqualTo(300);
+        assertThat(stored.getHeight()).isEqualTo(150);
+    }
+
+    @Test
+    void invalidImageIsRejected() throws Exception {
+        Cookie token = registerUser("badimageuser");
+        MockMultipartFile file = new MockMultipartFile("file", "photo.png", MediaType.IMAGE_PNG_VALUE, "fake png bytes".getBytes());
+
+        mockMvc.perform(multipart("/api/media")
+                        .file(file)
+                        .cookie(token))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
     void uploadRequiresAuthentication() throws Exception {
-        MockMultipartFile file = new MockMultipartFile("file", "photo.png", MediaType.IMAGE_PNG_VALUE, "bytes".getBytes());
+        MockMultipartFile file = new MockMultipartFile("file", "photo.png", MediaType.IMAGE_PNG_VALUE, pngBytes(100, 50));
 
         mockMvc.perform(multipart("/api/media").file(file))
                 .andExpect(status().isUnauthorized());
@@ -70,6 +89,17 @@ class MediaRestIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return result.getResponse().getCookie("ACCESS_TOKEN");
+    }
+
+    private static byte[] pngBytes(int width, int height) throws IOException {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.setColor(Color.GRAY);
+        graphics.fillRect(0, 0, width, height);
+        graphics.dispose();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", out);
+        return out.toByteArray();
     }
 
     private record AuthPayload(String username, String email, String password) {
