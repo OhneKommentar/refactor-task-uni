@@ -28,7 +28,7 @@
         <form @submit.prevent="createNewPost" class="card form composer">
           <textarea v-model="composer.content" rows="3" placeholder="Share something..." required></textarea>
           <input v-model="composer.imageUrl" placeholder="Image URL (optional)">
-          <input type="file" accept="image/*,video/*" @change="uploadComposerMedia">
+          <input ref="mediaInput" type="file" accept="image/*,video/*" @change="uploadComposerMedia">
           <div class="actions">
             <button type="submit">Post</button>
           </div>
@@ -103,6 +103,7 @@ const authMode = ref('login')
 const error = ref('')
 const authForm = reactive({ username: '', email: '', password: '', usernameOrEmail: '' })
 const composer = reactive({ content: '', imageUrl: '' })
+const mediaInput = ref(null)
 
 // Comments state
 const comments = reactive({})
@@ -197,6 +198,7 @@ async function createNewPost() {
   await createPost({ content: composer.content, imageUrl: composer.imageUrl || null })
   composer.content = ''
   composer.imageUrl = ''
+  if (mediaInput.value) mediaInput.value.value = ''
   await loadFeed()
 }
 

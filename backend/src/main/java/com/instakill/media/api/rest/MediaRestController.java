@@ -1,6 +1,7 @@
 package com.instakill.media.api.rest;
 
 import com.instakill.common.error.BadRequestException;
+import com.instakill.imageprocessing.application.ImageProcessingService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,11 +25,15 @@ import java.util.UUID;
 public class MediaRestController {
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("jpg", "png", "mp4", "mov");
+    private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "png");
 
     private final String basePath;
+    private final ImageProcessingService imageProcessingService;
 
-    public MediaRestController(@Value("${media.base-path}") String basePath) {
+    public MediaRestController(@Value("${media.base-path}") String basePath,
+                               ImageProcessingService imageProcessingService) {
         this.basePath = basePath;
+        this.imageProcessingService = imageProcessingService;
     }
 
     @PostMapping(value = "/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -41,10 +46,16 @@ public class MediaRestController {
         if (extension == null || !ALLOWED_EXTENSIONS.contains(extension.toLowerCase(Locale.ROOT))) {
             throw new BadRequestException("File type not allowed");
         }
-        String filename = UUID.randomUUID() + "." + extension.toLowerCase(Locale.ROOT);
+        String normalizedExtension = extension.toLowerCase(Locale.ROOT);
+        String filename = UUID.randomUUID() + "." + normalizedExtension;
         Path directory = Path.of(basePath).toAbsolutePath();
         Files.createDirectories(directory);
-        file.transferTo(directory.resolve(filename));
+        if (IMAGE_EXTENSIONS.contains(normalizedExtension)) {
+            byte[] processed = imageProcessingService.process(file.getBytes(), normalizedExtension);
+            Files.write(directory.resolve(filename), processed);
+        } else {
+            file.transferTo(directory.resolve(filename));
+        }
         return new MediaResponse("/media/" + filename);
     }
 }
