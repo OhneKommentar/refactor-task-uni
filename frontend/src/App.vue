@@ -4,6 +4,7 @@
       <h1>Instakill</h1>
       <nav v-if="user">
         <span class="user">@{{ user.username }}</span>
+        <button @click="toggleView">{{ view === 'feed' ? 'Analytics' : 'Feed' }}</button>
         <button @click="logout">Logout</button>
       </nav>
     </header>
@@ -24,6 +25,66 @@
         </form>
       </section>
 
+      <section v-else-if="view === 'analytics'" class="analytics">
+        <div class="feed-toolbar">
+          <h2>Your analytics</h2>
+        </div>
+        <p v-if="analyticsError" class="error">{{ analyticsError }}</p>
+        <template v-else-if="analytics">
+          <div class="stat-grid">
+            <div class="card stat"><span>Posts</span><strong>{{ analytics.totals.posts }}</strong></div>
+            <div class="card stat"><span>Likes</span><strong>{{ analytics.totals.likes }}</strong></div>
+            <div class="card stat"><span>Comments</span><strong>{{ analytics.totals.comments }}</strong></div>
+            <div class="card stat"><span>Like-to-comment ratio</span><strong>{{ formatDecimal(analytics.totals.likeToCommentRatio) }}</strong></div>
+          </div>
+
+          <div class="card">
+            <h3>Per week</h3>
+            <table v-if="analytics.weekly.length" class="stats-table">
+              <thead><tr><th>Week</th><th>Posts</th><th>Likes</th><th>Comments</th></tr></thead>
+              <tbody>
+                <tr v-for="week in analytics.weekly" :key="week.week">
+                  <td>{{ week.week }}</td><td>{{ week.posts }}</td><td>{{ week.likes }}</td><td>{{ week.comments }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <em v-else>No activity yet.</em>
+          </div>
+
+          <div class="card">
+            <h3>Top 5 posts by engagement (likes + comments)</h3>
+            <ol v-if="analytics.topPosts.length" class="top-posts">
+              <li v-for="post in analytics.topPosts" :key="post.id">
+                <span class="top-content">{{ post.content }}</span>
+                <span class="top-metrics">{{ post.likes }} likes · {{ post.comments }} comments · {{ post.engagement }} engagement</span>
+              </li>
+            </ol>
+            <em v-else>No posts yet.</em>
+          </div>
+
+          <div class="card">
+            <h3>Average likes per post by media type</h3>
+            <table class="stats-table">
+              <thead><tr><th>Type</th><th>Posts</th><th>Avg. likes per post</th></tr></thead>
+              <tbody>
+                <tr><td>Photos</td><td>{{ analytics.mediaTypes.photos.posts }}</td><td>{{ formatDecimal(analytics.mediaTypes.photos.averageLikes) }}</td></tr>
+                <tr><td>Videos</td><td>{{ analytics.mediaTypes.videos.posts }}</td><td>{{ formatDecimal(analytics.mediaTypes.videos.averageLikes) }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <h3>Ranking by average engagement per post</h3>
+            <p v-if="analytics.ranking.position">
+              Average engagement per post: <strong>{{ formatDecimal(analytics.ranking.averageEngagementPerPost) }}</strong>.
+              You rank #{{ analytics.ranking.position }} of {{ analytics.ranking.rankedUsers }} users,
+              which places you in the top <strong>{{ formatDecimal(analytics.ranking.topPercent) }}%</strong>.
+            </p>
+            <em v-else>Create a post to get a ranking.</em>
+          </div>
+        </template>
+      </section>
+
       <section v-else class="feed">
         <form @submit.prevent="createNewPost" class="card form composer">
           <textarea v-model="composer.content" rows="3" placeholder="Share something..." required></textarea>
@@ -37,8 +98,9 @@
         <div class="feed-toolbar">
           <h2>Feed</h2>
           <div class="sort">
-            <button :class="{ active: sort === 'new' }" @click="changeSort('new')">Newest</button>
-            <button :class="{ active: sort === 'trending' }" @click="changeSort('trending')">Trending</button>
+            <span v-if="loadingFeed" class="loading">Loading…</span>
+            <button :class="{ active: sort === 'new' }" :disabled="loadingFeed" @click="changeSort('new')">Newest</button>
+            <button :class="{ active: sort === 'trending' }" :disabled="loadingFeed" @click="changeSort('trending')">Trending</button>
           </div>
         </div>
 
@@ -94,11 +156,15 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { createPost, fetchMe, listFeed, login, register as registerUser, toggleLike, listComments, addComment, uploadMedia } from './api'
+import { createPost, fetchMe, listFeed, login, register as registerUser, toggleLike, listComments, addComment, uploadMedia, fetchAnalytics } from './api'
 
 const user = ref(null)
 const posts = ref([])
 const sort = ref('new')
+const view = ref('feed')
+const loadingFeed = ref(false)
+const analytics = ref(null)
+const analyticsError = ref('')
 const authMode = ref('login')
 const error = ref('')
 const authForm = reactive({ username: '', email: '', password: '', usernameOrEmail: '' })
@@ -208,14 +274,43 @@ async function togglePostLike(post) {
   post.likeCount = result.likeCount
 }
 
-function changeSort(next) {
+async function changeSort(next) {
   if (sort.value === next) return
   sort.value = next
-  loadFeed()
+  loadingFeed.value = true
+  try {
+    await loadFeed()
+  } finally {
+    loadingFeed.value = false
+  }
+}
+
+async function toggleView() {
+  if (view.value === 'feed') {
+    view.value = 'analytics'
+    await loadAnalytics()
+  } else {
+    view.value = 'feed'
+    await loadFeed()
+  }
+}
+
+async function loadAnalytics() {
+  analyticsError.value = ''
+  try {
+    analytics.value = await fetchAnalytics()
+  } catch (e) {
+    analytics.value = null
+    analyticsError.value = 'Failed to load analytics'
+  }
 }
 
 function formatDate(iso) {
   return new Date(iso).toLocaleString()
+}
+
+function formatDecimal(value) {
+  return value == null ? '–' : value.toFixed(2)
 }
 
 async function logout() {
@@ -227,6 +322,8 @@ async function logout() {
   document.cookie = 'ACCESS_TOKEN=; Max-Age=0; path=/'
   user.value = null
   posts.value = []
+  view.value = 'feed'
+  analytics.value = null
 }
 </script>
 
@@ -334,6 +431,16 @@ async function logout() {
   color: #fff;
 }
 
+.sort button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sort .loading {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
 .post header {
   display: flex;
   justify-content: space-between;
@@ -389,5 +496,42 @@ async function logout() {
   border: none;
   padding: 0.4rem 1.1rem;
   border-radius: 999px;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.stat span {
+  color: #6b7280;
+}
+.stat strong {
+  font-size: 1.6rem;
+}
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.stats-table th,
+.stats-table td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+.top-posts li {
+  margin-bottom: 0.75rem;
+}
+.top-content {
+  display: block;
+  font-weight: 600;
+}
+.top-metrics {
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 </style>
