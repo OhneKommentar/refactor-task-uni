@@ -98,8 +98,9 @@
         <div class="feed-toolbar">
           <h2>Feed</h2>
           <div class="sort">
-            <button :class="{ active: sort === 'new' }" @click="changeSort('new')">Newest</button>
-            <button :class="{ active: sort === 'trending' }" @click="changeSort('trending')">Trending</button>
+            <span v-if="loadingFeed" class="loading">Loading…</span>
+            <button :class="{ active: sort === 'new' }" :disabled="loadingFeed" @click="changeSort('new')">Newest</button>
+            <button :class="{ active: sort === 'trending' }" :disabled="loadingFeed" @click="changeSort('trending')">Trending</button>
           </div>
         </div>
 
@@ -161,6 +162,7 @@ const user = ref(null)
 const posts = ref([])
 const sort = ref('new')
 const view = ref('feed')
+const loadingFeed = ref(false)
 const analytics = ref(null)
 const analyticsError = ref('')
 const authMode = ref('login')
@@ -272,10 +274,15 @@ async function togglePostLike(post) {
   post.likeCount = result.likeCount
 }
 
-function changeSort(next) {
+async function changeSort(next) {
   if (sort.value === next) return
   sort.value = next
-  loadFeed()
+  loadingFeed.value = true
+  try {
+    await loadFeed()
+  } finally {
+    loadingFeed.value = false
+  }
 }
 
 async function toggleView() {
@@ -422,6 +429,16 @@ async function logout() {
 .sort button.active {
   background: #111827;
   color: #fff;
+}
+
+.sort button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sort .loading {
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .post header {
