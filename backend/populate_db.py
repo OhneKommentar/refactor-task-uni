@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Fill instakill.db with configurable test data.
+"""Fill the Instakill PostgreSQL database with configurable test data.
 
 Deletes all comments, likes, posts and users (except alice and bob), adds the
 user charlie (password: "password") and generates random users with posts,
-comments and likes that match the existing SQLite schema.
+comments and likes that match the PostgreSQL schema created by Hibernate
+(run the backend with the "postgres" profile once before using this script).
 
-Requirements: pip install faker bcrypt
+Requirements: pip install faker bcrypt "psycopg[binary]"
 
 Examples:
     python populate_db.py
@@ -14,14 +15,15 @@ Examples:
 
 import argparse
 import random
-import sqlite3
 import time
 import uuid
-from datetime import datetime, time as dtime, timedelta
-from pathlib import Path
+from datetime import datetime, time as dtime, timedelta, timezone
 
 import bcrypt
+import psycopg
 from faker import Faker
+
+DEFAULT_DSN = "postgresql://instakill:instakill_password@localhost:5432/instakill"
 
 SEED_USERNAMES = ("alice", "bob")
 CHARLIE = ("charlie", "charlie@example.com", "password")
@@ -33,8 +35,8 @@ BCRYPT_ROUNDS = 10  # Spring's BCryptPasswordEncoder default strength
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--db", type=Path, default=Path(__file__).with_name("instakill.db"),
-                        help="path to the SQLite database (default: instakill.db next to this script)")
+    parser.add_argument("--dsn", default=DEFAULT_DSN,
+                        help=f"PostgreSQL connection string (default: {DEFAULT_DSN})")
     parser.add_argument("--users", type=int, default=10_000,
                         help="total number of users including alice, bob and charlie (default: 10000)")
     parser.add_argument("--min-posts", type=int, default=10, help="minimum posts per user (default: 10)")
@@ -60,9 +62,9 @@ def parse_args():
     return args
 
 
-def to_ms(dt):
-    """SQLite stores Instant values as epoch milliseconds."""
-    return int(dt.timestamp() * 1000)
+def to_timestamp(dt):
+    """PostgreSQL stores Instant values as timestamp with time zone (UTC)."""
+    return dt.astimezone(timezone.utc)
 
 
 def unique_username(fake, taken):
@@ -75,34 +77,33 @@ def unique_username(fake, taken):
 
 def reset_tables(conn, now):
     """Delete comments, likes, posts and users (except alice and bob) and return the seed user ids."""
-    conn.execute("BEGIN")
-    conn.execute("DELETE FROM comments")
-    conn.execute("DELETE FROM likes")
-    conn.execute("DELETE FROM posts")
-    conn.execute("DELETE FROM users WHERE username NOT IN (?, ?)", SEED_USERNAMES)
+    with conn.transaction():
+        conn.execute("DELETE FROM comments")
+        conn.execute("DELETE FROM likes")
+        conn.execute("DELETE FROM posts")
+        conn.execute("DELETE FROM users WHERE username NOT IN (%s, %s)", SEED_USERNAMES)
 
-    seed_ids = {}
-    for username in SEED_USERNAMES:
-        row = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
-        if row is None:
-            # alice/bob were removed from the database: recreate them with the documented password
-            row_id = str(uuid.uuid4())
-            conn.execute(
-                "INSERT INTO users (id, created_at, email, password_hash, username) VALUES (?, ?, ?, ?, ?)",
-                (row_id, to_ms(now), f"{username}@example.com", hash_password(ALICE_BOB_PASSWORD), username),
-            )
-        else:
-            row_id = row[0]
-        seed_ids[username] = row_id
+        seed_ids = {}
+        for username in SEED_USERNAMES:
+            row = conn.execute("SELECT id FROM users WHERE username = %s", (username,)).fetchone()
+            if row is None:
+                # alice/bob were removed from the database: recreate them with the documented password
+                row_id = str(uuid.uuid4())
+                conn.execute(
+                    "INSERT INTO users (id, created_at, email, password_hash, username) VALUES (%s, %s, %s, %s, %s)",
+                    (row_id, to_timestamp(now), f"{username}@example.com", hash_password(ALICE_BOB_PASSWORD), username),
+                )
+            else:
+                row_id = row[0]
+            seed_ids[username] = row_id
 
-    charlie_id = str(uuid.uuid4())
-    username, email, password = CHARLIE
-    conn.execute(
-        "INSERT INTO users (id, created_at, email, password_hash, username) VALUES (?, ?, ?, ?, ?)",
-        (charlie_id, to_ms(now), email, hash_password(password), username),
-    )
-    seed_ids[username] = charlie_id
-    conn.execute("COMMIT")
+        charlie_id = str(uuid.uuid4())
+        username, email, password = CHARLIE
+        conn.execute(
+            "INSERT INTO users (id, created_at, email, password_hash, username) VALUES (%s, %s, %s, %s, %s)",
+            (charlie_id, to_timestamp(now), email, hash_password(password), username),
+        )
+        seed_ids[username] = charlie_id
     return seed_ids
 
 
@@ -119,7 +120,7 @@ def build_generated_users(fake, count, now, shared_hash):
     for _ in range(count):
         username = unique_username(fake, taken)
         created = fake.date_time_between(earliest, week_start)
-        rows.append((str(uuid.uuid4()), to_ms(created), f"{username}@example.com", shared_hash, username))
+        rows.append((str(uuid.uuid4()), to_timestamp(created), f"{username}@example.com", shared_hash, username))
     return rows, [row[0] for row in rows]
 
 
@@ -140,9 +141,9 @@ def main():
     week_start = now - timedelta(days=7)
     started = time.time()
 
-    conn = sqlite3.connect(args.db, isolation_level=None)
+    conn = psycopg.connect(args.dsn, autocommit=True)
     try:
-        print(f"Resetting tables in {args.db} ...")
+        print("Resetting tables in the PostgreSQL database ...")
         seed_ids = reset_tables(conn, now)
 
         generated_count = args.users - len(seed_ids)
@@ -155,12 +156,11 @@ def main():
         # Users are written in committed batches so partial progress is kept on failure.
         for start in range(0, len(generated_rows), args.batch_size):
             batch = generated_rows[start:start + args.batch_size]
-            conn.execute("BEGIN")
-            conn.executemany(
-                "INSERT INTO users (id, created_at, email, password_hash, username) VALUES (?, ?, ?, ?, ?)",
-                batch,
-            )
-            conn.execute("COMMIT")
+            with conn.transaction(), conn.cursor() as cur:
+                cur.executemany(
+                    "INSERT INTO users (id, created_at, email, password_hash, username) VALUES (%s, %s, %s, %s, %s)",
+                    batch,
+                )
 
         # Posts, comments and likes are generated per author batch and committed together.
         author_ids = list(seed_ids.values()) + generated_ids
@@ -184,35 +184,34 @@ def main():
                     for liker in liked_by:
                         t = fake.date_time_between(created, now)
                         latest = max(latest, t)
-                        like_rows.append((str(uuid.uuid4()), to_ms(t), post_id, liker))
+                        like_rows.append((str(uuid.uuid4()), to_timestamp(t), post_id, liker))
                     for _ in range(n_comments):
                         t = fake.date_time_between(created, now)
                         latest = max(latest, t)
                         comment_rows.append((
                             str(uuid.uuid4()), random.choice(all_user_ids), fake.sentence(nb_words=random.randint(3, 12)),
-                            to_ms(t), post_id,
+                            to_timestamp(t), post_id,
                         ))
 
                     post_rows.append((
-                        post_id, author_id, n_comments, content, to_ms(created), image_url,
-                        n_likes, to_ms(latest),
+                        post_id, author_id, n_comments, content, to_timestamp(created), image_url,
+                        n_likes, to_timestamp(latest),
                     ))
 
-            conn.execute("BEGIN")
-            conn.executemany(
-                "INSERT INTO posts (id, author_id, comment_count, content, created_at, image_url, like_count, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                post_rows,
-            )
-            conn.executemany(
-                "INSERT INTO comments (id, author_id, content, created_at, post_id) VALUES (?, ?, ?, ?, ?)",
-                comment_rows,
-            )
-            conn.executemany(
-                "INSERT INTO likes (id, created_at, post_id, user_id) VALUES (?, ?, ?, ?)",
-                like_rows,
-            )
-            conn.execute("COMMIT")
+            with conn.transaction(), conn.cursor() as cur:
+                cur.executemany(
+                    "INSERT INTO posts (id, author_id, comment_count, content, created_at, image_url, like_count, updated_at) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    post_rows,
+                )
+                cur.executemany(
+                    "INSERT INTO comments (id, author_id, content, created_at, post_id) VALUES (%s, %s, %s, %s, %s)",
+                    comment_rows,
+                )
+                cur.executemany(
+                    "INSERT INTO likes (id, created_at, post_id, user_id) VALUES (%s, %s, %s, %s)",
+                    like_rows,
+                )
             print(f"  committed authors {start + 1}-{min(start + args.batch_size, len(author_ids))}")
 
         verify(conn)
