@@ -50,13 +50,30 @@ Seed accounts (development profile):
 
 The "Make It Funnier" button in the post composer sends the caption to `POST /api/funnyfy`. The backend forwards it to a local LLM through the OpenAI-compatible `/v1/chat/completions` endpoint (for example LM Studio).
 
+One-time setup:
+
 ```bash
-# Install LM Studio (https://lmstudio.ai), then:
+# Install LM Studio (https://lmstudio.ai) and open it once, then:
+~/.lmstudio/bin/lms bootstrap      # optional: puts `lms` on your PATH (open a new terminal afterwards)
 lms get google/gemma-3-270m
+```
+
+Start the LLM:
+
+```bash
 lms server start --port 12345
 lms load google/gemma-3-270m
-curl http://localhost:12345/v1/models
+curl http://localhost:12345/v1/models   # should list google/gemma-3-270m
 ```
+
+Stop the LLM:
+
+```bash
+lms unload --all      # free the model from memory
+lms server stop
+```
+
+`lms server status` shows whether the server is running.
 
 You can set the connection with environment variables. The defaults are in `backend/src/main/resources/application.yaml`:
 
