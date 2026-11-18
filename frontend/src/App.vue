@@ -87,7 +87,19 @@
 
       <section v-else class="feed">
         <form @submit.prevent="createNewPost" class="card form composer">
-          <textarea v-model="composer.content" rows="3" placeholder="Share something..." required></textarea>
+          <textarea v-model="composer.content" rows="3" placeholder="Share something..." required :readonly="funnyLoading"></textarea>
+          <div class="funny-row">
+            <button
+              type="button"
+              class="funny-button"
+              :disabled="funnyLoading || !composer.content.trim()"
+              @click="makeFunnier"
+            >
+              <span v-if="funnyLoading" class="spinner" aria-hidden="true"></span>
+              {{ funnyLoading ? 'Making it funnier…' : 'Make It Funnier' }}
+            </button>
+            <span v-if="funnyError" class="funny-error" role="status">{{ funnyError }}</span>
+          </div>
           <input v-model="composer.imageUrl" placeholder="Image URL (optional)">
           <input ref="mediaInput" type="file" accept="image/*,video/*" @change="uploadComposerMedia">
           <div class="actions">
@@ -151,12 +163,17 @@
         </article>
       </section>
     </main>
+
+    <div v-if="funnyToast" class="toast" role="status">
+      <span>Your post just got funnier 😎</span>
+      <button v-if="funnyUndo !== null" type="button" @click="undoFunny">Undo</button>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { createPost, fetchMe, listFeed, login, register as registerUser, toggleLike, listComments, addComment, uploadMedia, fetchAnalytics } from './api'
+import { createPost, fetchMe, listFeed, login, register as registerUser, toggleLike, listComments, addComment, uploadMedia, fetchAnalytics, funnyfy } from './api'
 
 const user = ref(null)
 const posts = ref([])
@@ -170,6 +187,14 @@ const error = ref('')
 const authForm = reactive({ username: '', email: '', password: '', usernameOrEmail: '' })
 const composer = reactive({ content: '', imageUrl: '' })
 const mediaInput = ref(null)
+
+// "Make It Funnier" state
+const funnyLoading = ref(false)
+const funnyError = ref('')
+const funnyToast = ref(false)
+const funnyUndo = ref(null)
+let funnyToastTimer = null
+let funnyErrorTimer = null
 
 // Comments state
 const comments = reactive({})
@@ -262,10 +287,49 @@ async function uploadComposerMedia(event) {
 async function createNewPost() {
   if (!composer.content.trim()) return
   await createPost({ content: composer.content, imageUrl: composer.imageUrl || null })
+  hideFunnyToast()
   composer.content = ''
   composer.imageUrl = ''
   if (mediaInput.value) mediaInput.value.value = ''
   await loadFeed()
+}
+
+async function makeFunnier() {
+  const original = composer.content
+  if (!original.trim() || funnyLoading.value) return
+  funnyLoading.value = true
+  funnyError.value = ''
+  clearTimeout(funnyErrorTimer)
+  hideFunnyToast()
+  try {
+    const result = await funnyfy(original)
+    composer.content = result.text
+    funnyUndo.value = original
+    showFunnyToast()
+  } catch (e) {
+    funnyError.value = e.response?.data?.detail || 'Could not make your post funnier. Please try again.'
+    funnyErrorTimer = setTimeout(() => { funnyError.value = '' }, 6000)
+  } finally {
+    funnyLoading.value = false
+  }
+}
+
+function showFunnyToast() {
+  funnyToast.value = true
+  clearTimeout(funnyToastTimer)
+  funnyToastTimer = setTimeout(hideFunnyToast, 6000)
+}
+
+function hideFunnyToast() {
+  funnyToast.value = false
+  funnyUndo.value = null
+  clearTimeout(funnyToastTimer)
+}
+
+function undoFunny() {
+  if (funnyUndo.value === null) return
+  composer.content = funnyUndo.value
+  hideFunnyToast()
 }
 
 async function togglePostLike(post) {
@@ -389,6 +453,72 @@ async function logout() {
   border: none;
   padding: 0.5rem 1.25rem;
   border-radius: 999px;
+}
+
+.funny-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.form .funny-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  padding: 0.4rem 1rem;
+  font-size: 0.9rem;
+}
+
+.form .funny-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner {
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.funny-error {
+  color: #b45309;
+  font-size: 0.85rem;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #111827;
+  color: #fff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.25);
+  z-index: 10;
+}
+
+.toast button {
+  background: transparent;
+  border: none;
+  color: #93c5fd;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
 }
 
 .tabs {
