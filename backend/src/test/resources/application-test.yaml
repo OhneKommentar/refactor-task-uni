@@ -25,3 +25,8 @@ instakill:
       enabled: false
       base-url: https://ntfy.sh
       topic: instakill-test
+  llm:
+    url: http://localhost:12345/v1/chat/completions
+    model: test-model
+    timeout: 2s
+    system-prompt: "Make it funny."

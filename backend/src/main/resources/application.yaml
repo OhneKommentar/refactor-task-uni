@@ -36,6 +36,11 @@ instakill:
       enabled: true
       base-url: https://ntfy.sh
       topic: instakill-demo
+  llm:
+    url: ${LOCAL_LLM_URL:http://localhost:12345/v1/chat/completions}
+    model: ${LOCAL_LLM_MODEL:google/gemma-3-270m}
+    timeout: ${LOCAL_LLM_TIMEOUT:30s}
+    system-prompt: "Always reply with the user's message, but rewritten in a more funny style."
 logging:
   level:
     org.hibernate.SQL: warn
